@@ -10,6 +10,9 @@
 typedef struct
 {
 	long  lLength;
+	bool  boRandomLength;
+	long  lMinLength;
+	long  lMaxLength;
 	bool  boNumeric;
 	bool  boAlphabeticalLowerCase;
 	bool  boAlphabeticalUpperCase;
@@ -24,6 +27,8 @@ static const char a1cHelp[] = {
 	"default arguments are: -l 16 -a -A -n -s                       \n"
 	"-h, --help            Show this message                        \n"
 	"-l, --length          Length of the password                   \n"
+	"-m, --minlength       Minimum length of the password           \n"
+	"-M, --maxlength       Maximum length of the password           \n"
 	"-n, --numeric         Enable numeric characters                \n"
 	"-a, --alphabetical    Enable lower case alphabetical characters\n"
 	"-A, --Alphabetical    Enable upper case alphabetical characters\n"
@@ -40,16 +45,19 @@ void init_config (CONFIG_TYPE *ptConfig)
 {
 	memset(ptConfig, 0, sizeof(*ptConfig));
 
-	ptConfig->lLength = DEFAULT_PASSWORD_LENGTH;
+	ptConfig->lLength   = DEFAULT_PASSWORD_LENGTH;
+	ptConfig->pfOutfile = NULL;
 }
 
 void read_command_line_arguments (int argc, char **argv, CONFIG_TYPE *ptConfig)
 {
-	bool boDefaultArgs = true;
+	bool boDefaultCharacterArgs = true;
 	int flag;
 	static struct option longopts[] = {
 			{"help",         no_argument,       NULL, 'h'},
 			{"length",       required_argument, NULL, 'l'},
+			{"minlength",    required_argument, NULL, 'm'},
+			{"maxlength",    required_argument, NULL, 'M'},
 			{"numeric",      no_argument,       NULL, 'n'},
 			{"alphabetical", no_argument,       NULL, 'a'},
 			{"Alphabetical", no_argument,       NULL, 'A'},
@@ -60,7 +68,7 @@ void read_command_line_arguments (int argc, char **argv, CONFIG_TYPE *ptConfig)
 	};
 	char *pc;
 
-	while ( (flag = getopt_long(argc, argv, "hl:naAso:d", longopts, NULL)) != -1)
+	while ( (flag = getopt_long(argc, argv, "hl:m:M:naAso:d", longopts, NULL)) != -1)
 	{
 		switch (flag)
 		{
@@ -77,31 +85,45 @@ void read_command_line_arguments (int argc, char **argv, CONFIG_TYPE *ptConfig)
 			}
 			break;
 
+			case 'm':
+			{
+				ptConfig->lMinLength     = strtol(optarg, &pc, 10);
+				ptConfig->boRandomLength = true;
+			}
+			break;
+
+			case 'M':
+			{
+				ptConfig->lMaxLength     = strtol(optarg, &pc, 10);
+				ptConfig->boRandomLength = true;
+			}
+			break;
+
 			case 'n':
 			{
-				ptConfig->boNumeric = true;
-				boDefaultArgs = false;
+				ptConfig->boNumeric    = true;
+				boDefaultCharacterArgs = false;
 			}
 			break;
 
 			case 'a':
 			{
 				ptConfig->boAlphabeticalLowerCase = true;
-				boDefaultArgs = false;
+				boDefaultCharacterArgs            = false;
 			}
 			break;
 
 			case 'A':
 			{
 				ptConfig->boAlphabeticalUpperCase = true;
-				boDefaultArgs = false;
+				boDefaultCharacterArgs            = false;
 			}
 			break;
 
 			case 's':
 			{
-				ptConfig->boSpecial = true;
-				boDefaultArgs = false;
+				ptConfig->boSpecial    = true;
+				boDefaultCharacterArgs = false;
 			}
 			break;
 
@@ -130,7 +152,7 @@ void read_command_line_arguments (int argc, char **argv, CONFIG_TYPE *ptConfig)
 		}
 	}
 
-	if (boDefaultArgs)
+	if (boDefaultCharacterArgs)
 	{
 		ptConfig->boNumeric               = true;
 		ptConfig->boAlphabeticalLowerCase = true;
@@ -141,6 +163,9 @@ void read_command_line_arguments (int argc, char **argv, CONFIG_TYPE *ptConfig)
 	if (ptConfig->boDebug)
 	{
 		printf("lLength:                 %ld\n", ptConfig->lLength);
+		printf("boRandomLength:          %s\n",  ptConfig->boRandomLength?"true":"false");
+		printf("lMinLength:              %ld\n", ptConfig->lMinLength);
+		printf("lMaxLength:              %ld\n", ptConfig->lMaxLength);
 		printf("boNumeric:               %s\n",  ptConfig->boNumeric?"true":"false");
 		printf("boAlphabeticalLowerCase: %s\n",  ptConfig->boAlphabeticalLowerCase?"true":"false");
 		printf("boAlphabeticalUpperCase: %s\n",  ptConfig->boAlphabeticalUpperCase?"true":"false");
@@ -258,6 +283,11 @@ int main (int argc, char **argv)
 	// https://stackoverflow.com/a/323302
 	seed = mix(clock(), time(NULL), getpid());
 	srand(seed);
+
+	if (tConfig.boRandomLength)
+	{
+		tConfig.lLength = (long)(tConfig.lMinLength + (rand() % (tConfig.lMaxLength - tConfig.lMinLength + 1)));
+	}
 
 	if ((pcPassword = malloc(sizeof(char) * (tConfig.lLength + 1))) == NULL)
 	{
